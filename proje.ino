@@ -20,7 +20,7 @@
 //Definitions for sim card usage
 Sim800l Sim800l;
 char* textMessage;
-char* number = "+905544544972"; //User's phone number
+char* number = "+905062105185"; //User's phone number
 String incomingText, numberSms;
 uint8_t index;
 bool errorSend;
@@ -86,19 +86,19 @@ void setup() //This function is called when a sketch starts.
   topServo.write(topServoLocation);
   delay(50); //Pauses the program (in milliseconds) for stable operation.
 
-  //Sim800l.begin();
-  //Sim800l.reset();
-  //delay(5000);
-  //textMessage = "Welcome to ABAIS. To learn the available SMS commands, type 'help' and reply to this message.";
-  //SendSMS();
-  //errorDel=Sim800l.delAllSms(); //clean memory of sms
-  delay(2000);
+  Sim800l.begin();
+  delay(20000);
+  textMessage = "ABAIS'e hos geldiniz. Kullanilabilir sms komutlari icin \"yardim\" yazin ve cevaplayin.";
+  SendSMS();
+  Sim800l.delAllSms(); //clean memory of sms
 }
 
 void loop() //This function loops consecutively, allowing your program to change and respond.
 {
-  solarTrackingLoop(15); //Follow the sun for 15 seconds to determine the position of the sun.
   timeOnTheLCD();
+  delay(3000);
+  solarTrackingLoop(15); //Follow the sun for 15 seconds to determine the position of the sun.
+
   
   //Read sensors values.
   readWaterLevel();
@@ -113,23 +113,25 @@ void loop() //This function loops consecutively, allowing your program to change
     //SendSMS();
     delay(2000);
   }
-
-  //irrigation(3);
-  if (!postpone) {
-    if ((myRTC.hours >= 18) || (myRTC.hours < 6)) {
-      if (myRTC.hours != lastHour) {
-        if (soilMoistureValue < 40) {
-          irrigation(5);
-          lastHour = myRTC.hours;
-        }
-      }
-    }
+  else {
+    abaisOnTheLCD();
+    lcd.print("Water Level: OK");
+    delay(2000);
+    }    
+  
+  abaisOnTheLCD();
+  lcd.print("Soil Moisture:");
+  lcd.print(soilMoistureValue);
+  delay(2000);
+  
+  if (soilMoistureValue < 10){
+    irrigation(3);
   }
 
-  //readSMS();
+  readSMS();
 
   Serial.println("----END LOOP----");
-  delay(5000);
+  delay(2000);
 }
 
 void readSMS()
@@ -139,40 +141,21 @@ void readSMS()
     if (incomingText.length() > 7) {
       numberSms = Sim800l.getNumberSms(1);
       Serial.println(numberSms);
-      incomingText.toUpperCase();
-      if (incomingText.indexOf("STOP") != -1) {
-        postpone = true;
-        Serial.println("postpone = true");
-      }
-      else if (incomingText.indexOf("START") != -1) {
-        postpone = false;
-        Serial.println("postpone = false");
-      }
-      else if (incomingText.indexOf("SYSTEMTIME") != -1) {
-        textMessage = myRTC.dayofmonth;
-        textMessage += '/';
-        textMessage += myRTC.month;
-        textMessage += '/';
-        textMessage += myRTC.year;
-        textMessage += ' ';
-        textMessage += myRTC.hours;
-        textMessage += ':';
-        textMessage += myRTC.minutes;
+      incomingText.toLowerCase();
+      if (incomingText.indexOf("sula") != -1) {
+        abaisOnTheLCD();
+        lcd.print("Received: sula");
+        delay(2000);
+        irrigation(3);
+        textMessage = "Sulama basariyla tamamlandi.";
         SendSMS();
       }
-      else if (incomingText.indexOf("HELP") != -1) {
-        textMessage = "1/4 To postpone irrigation jobs indefinitely, write 'stop'.";
+      else if (incomingText.indexOf("yardim") != -1) {
+        abaisOnTheLCD();
+        lcd.print("Received: yardim");
+        delay(2000);
+        textMessage = "Kosullara bagli olmadan anlik sulama gerceklestirmek icin \"sula\" yazin ve cevaplayin.";
         SendSMS();
-        delay(3000);
-        textMessage = "2/4 To start indefinitely postponed irrigation jobs, write 'start'.";
-        SendSMS();
-        delay(3000);
-        textMessage = "3/4 To learn the system time, write 'systemtime'.";
-        SendSMS();
-        delay(3000);
-        textMessage = "4/4 To learn the available SMS commands,  write 'help'.";
-        SendSMS();
-        delay(3000);
       }
       else {
         Serial.println("incomingText not compatible!");
@@ -323,38 +306,39 @@ void irrigation(int iSecond)
     pinMode(relayPin, OUTPUT);
     digitalWrite(relayPin, LOW);
     Serial.println("Irrigation is started.");
+    abaisOnTheLCD();
+    lcd.print("Start:Irrigation");
     iSecond = 1000 * iSecond;
     readWaterFlow();
     delay(iSecond);
-    if (waterFlowValue < 50) {
-      Serial.println("Irrigation is NOT completed. Water flow error.");
-      abaisOnTheLCD();
-      lcd.print("Irrigation error");
-      //textMessage = "Irrigation failure. Please check the water pipe connections.";
-      //SendSMS();
-    }
-    else {
-      Serial.println("Irrigation is completed.");
-      //textMessage = "Irrigation is completed successfully.";
-      //SendSMS();
-    }
     digitalWrite(relayPin, HIGH);
     delay(50);
     pinMode(relayPin, INPUT);
+    abaisOnTheLCD();
+    lcd.print("Stop: Irrigation");
+    delay(2000);
   }
   else {
     Serial.println("Irrigation is NOT completed. Water level is too low.");
+    abaisOnTheLCD();
+    lcd.print("Check water tank");
   }
 }
 
 void SendSMS()
 {
+  abaisOnTheLCD();
+  lcd.print("Sending SMS...");
   errorSend = Sim800l.sendSms(number, textMessage);
-  if (errorSend != 0) {
+  if (errorSend == true) {
+    abaisOnTheLCD();
+    lcd.print("SMS: OK");
+  }
+  else {
     abaisOnTheLCD();
     lcd.print("SMS error!!");
-    Serial.println("SMS error!!");
-  }
+    }
+  delay(2000);
 }
 
 void abaisOnTheLCD()
